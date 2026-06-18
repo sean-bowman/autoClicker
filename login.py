@@ -30,15 +30,9 @@ def runLogin() -> int:
     with sync_playwright() as pw:
         # A persistent context (vs. a throwaway browser) is what makes the login
         # survive between runs: everything is keyed to the on-disk profile dir.
-        context = pw.chromium.launch_persistent_context(
-            user_data_dir=str(config.PROFILE_DIR),
-            headless=False,
-            # A real desktop UA + viewport clears CloudFront's bot 403 and reduces
-            # the odds of the site flagging the session as automated during login.
-            user_agent=config.USER_AGENT,
-            args=config.BROWSER_ARGS,
-            viewport={'width': 1280, 'height': 900},
-        )
+        # launchOptions() drives real Chrome with automation flags stripped so
+        # Cloudflare's human-verification step can be passed manually.
+        context = pw.chromium.launch_persistent_context(**config.launchOptions(headless=False))
 
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(config.BOXED_URL, wait_until='domcontentloaded')

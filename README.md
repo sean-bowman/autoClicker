@@ -36,11 +36,12 @@ is deliberate: nothing sensitive is ever written to a tracked file.
 
 ## Setup
 
-Requires Python 3.10+ and the bundled Chromium.
+Requires Python 3.10+ and a **real Google Chrome install** (see
+[Beating Cloudflare](#beating-cloudflare) for why the bundled browser isn't enough).
 
 ```bash
 pip install -r requirements.txt
-playwright install chromium
+playwright install chromium   # fallback browser, if Chrome is unavailable
 ```
 
 **1. Log in once:**
@@ -86,10 +87,28 @@ On any pass where nothing is claimed, `claim.py` saves a full-page screenshot an
 
 ---
 
+## Beating Cloudflare
+
+boxed.gg sits behind Cloudflare, which actively fingerprints automated browsers. Two things were
+needed to get through:
+
+- **Drive real Google Chrome, not Playwright's bundled "Chrome for Testing".** The Testing build
+  leaves `navigator.webdriver = true` and trips Cloudflare's human-verification challenge. Pointing
+  Playwright at the installed Chrome (`channel='chrome'`) and stripping the `--enable-automation`
+  switch reports `navigator.webdriver = false` and clears the challenge during manual login.
+- **Run headed when challenged.** Headless Chrome reliably gets a `403` from Cloudflare even with a
+  real-Chrome fingerprint. So `claim.py` starts headless (silent) and, if it detects a block,
+  **automatically retries with a visible window** — which clears the managed challenge using the
+  trust already established on the persisted profile. If even the headed retry is blocked, it tells
+  you to re-run `login.py` to refresh the clearance cookie.
+
+All of this lives in `config.launchOptions()`; set `BROWSER_CHANNEL = None` to fall back to bundled
+Chromium (which then uses a spoofed user-agent to dodge the headless `403`).
+
 ## Configuration
 
 All tunables live in [`config.py`](config.py): target URL, claim cadence, the persistent-profile
-and log paths, page-settle timing, and the selector list.
+and log paths, page-settle timing, the selector list, and the browser-channel / fingerprint options.
 
 ---
 

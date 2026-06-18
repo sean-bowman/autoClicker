@@ -41,18 +41,60 @@ LOG_DIR = BASE_DIR / 'logs'
 # Override to False for the headed discovery/debugging run via the --headed flag.
 HEADLESS = True
 
-# boxed.gg sits behind CloudFront, which 403s the default Playwright headless
-# user-agent (it contains "HeadlessChrome"). Presenting a normal desktop Chrome
-# UA clears the block — verified returning 202 vs. 403 with the default. Keep this
-# roughly current with a real Chrome version.
+# boxed.gg sits behind Cloudflare/CloudFront, which fingerprints automated
+# browsers. Two independent defenses, both verified against the live site:
+#
+#   1. Drive REAL Google Chrome (channel below) rather than Playwright's bundled
+#      "Chrome for Testing" build. Cloudflare's Turnstile challenge flags the
+#      Testing build and leaves navigator.webdriver = true; real Chrome with the
+#      automation switch stripped reports navigator.webdriver = false and clears
+#      the human-verification step during manual login.
+#   2. Strip the --enable-automation switch Playwright adds by default, and
+#      disable the AutomationControlled blink feature.
+#
+# Set BROWSER_CHANNEL = None to fall back to Playwright's bundled Chromium (e.g.
+# on a machine without Chrome installed); the USER_AGENT spoof below is then
+# applied to dodge the headless 403. With a real channel we deliberately do NOT
+# override the UA — Chrome's native UA must match its real fingerprint.
+BROWSER_CHANNEL = 'chrome'  # or 'msedge'; None -> bundled Chromium
+
+# Launch args that reduce automation fingerprinting.
+BROWSER_ARGS = ['--disable-blink-features=AutomationControlled']
+
+# Default switches to suppress (these advertise automation to bot filters).
+IGNORE_DEFAULT_ARGS = ['--enable-automation']
+
+# Fallback UA, used ONLY when BROWSER_CHANNEL is None. The bundled headless build
+# otherwise sends "HeadlessChrome", which CloudFront 403s. Ignored for real Chrome.
 USER_AGENT = (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
 )
 
-# Launch args that reduce automation fingerprinting. --disable-blink-features=
-# AutomationControlled hides the navigator.webdriver flag many bot filters check.
-BROWSER_ARGS = ['--disable-blink-features=AutomationControlled']
+
+def launchOptions(headless: bool) -> dict:
+    '''
+    Build the keyword args shared by login.py and claim.py for
+    launch_persistent_context, so both browsers present an identical fingerprint.
+
+    Centralised on purpose: the manual login (login.py) and the scheduled claim
+    (claim.py) MUST look like the same browser, or Cloudflare invalidates the
+    clearance cookie the login earned.
+    '''
+    options: dict = {
+        'user_data_dir': str(PROFILE_DIR),
+        'headless': headless,
+        'args': BROWSER_ARGS,
+        'ignore_default_args': IGNORE_DEFAULT_ARGS,
+        'viewport': {'width': 1280, 'height': 900},
+    }
+    if BROWSER_CHANNEL:
+        # Real Chrome: use its native UA/fingerprint, do not spoof.
+        options['channel'] = BROWSER_CHANNEL
+    else:
+        # Bundled Chromium fallback: spoof UA to clear the headless 403.
+        options['user_agent'] = USER_AGENT
+    return options
 
 # Seconds to wait for the page and its dynamic gem-drop widgets to settle before
 # we start hunting for claimable elements. boxed.gg is a single-page app, so the

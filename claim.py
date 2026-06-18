@@ -98,55 +98,114 @@ def claimDrops(page) -> int:
     return clicked
 
 
+class CloudflareBlocked(Exception):
+    '''Raised when the page is a Cloudflare/CloudFront block or challenge.'''
+
+
+def looksBlocked(response, page) -> bool:
+    '''
+    Detect a Cloudflare/CloudFront bot block or interstitial challenge.
+
+    Headless Chrome reliably trips Cloudflare even with a real-Chrome fingerprint,
+    so claim.py uses this to decide whether to fall back to a headed retry. We
+    check the HTTP status and the tell-tale challenge titles/markers.
+    '''
+    if response is not None and response.status in (403, 429, 503):
+        return True
+    try:
+        title = (page.title() or '').lower()
+    except Exception:
+        title = ''
+    if 'just a moment' in title or 'attention required' in title:
+        return True
+    try:
+        body = page.content().lower()
+    except Exception:
+        body = ''
+    markers = ('verify you are human', 'cf-challenge', 'cf-browser-verification',
+               'the request could not be satisfied')
+    return any(marker in body for marker in markers)
+
+
+def attemptClaim(pw, headless: bool, keepOpen: bool) -> int:
+    '''
+    Single claim pass at a given headless setting. Returns the exit code, or
+    raises CloudflareBlocked so the caller can retry headed.
+    '''
+    # Same fingerprint as login.py (real Chrome, automation flags stripped), so
+    # the clearance cookie earned at login stays valid. See config.py.
+    context = pw.chromium.launch_persistent_context(**config.launchOptions(headless))
+    page = context.pages[0] if context.pages else context.new_page()
+
+    try:
+        response = page.goto(config.BOXED_URL, wait_until='domcontentloaded', timeout=45000)
+        # boxed.gg hydrates its claim widgets client-side after load.
+        page.wait_for_timeout(config.PAGE_SETTLE_SECONDS * 1000)
+
+        if looksBlocked(response, page):
+            # Signal the caller to retry headed; nothing actionable headless.
+            raise CloudflareBlocked(f'status={response.status if response else "?"}')
+
+        # Fail fast and loud if the saved session has expired, rather than
+        # silently clicking nothing for weeks.
+        if page.locator(config.LOGGED_OUT_SELECTOR).first.is_visible():
+            logResult('Appears logged out — session expired. Re-run login.py.')
+            dumpFailure(page, 'logged_out')
+            return 2
+
+        clicked = claimDrops(page)
+        if clicked:
+            logResult(f'Run complete — claimed {clicked} drop(s).')
+        else:
+            # Not necessarily an error: the pool may already be claimed.
+            logResult('Run complete — nothing claimable this pass.')
+            dumpFailure(page, 'nothing_claimed')
+
+        if keepOpen:
+            print('--keep-open set; press Enter to close the browser...')
+            input()
+        return 0
+
+    except CloudflareBlocked:
+        raise
+    except Exception as exc:
+        logResult(f'Unexpected error: {exc!r}')
+        dumpFailure(page, 'error')
+        return 3
+    finally:
+        context.close()
+
+
 def runClaim(headed: bool, keepOpen: bool) -> int:
-    '''Drive a single claim pass. Returns the process exit code.'''
+    '''
+    Drive a claim pass, retrying headed if a headless run is blocked by Cloudflare.
+
+    The scheduled run starts headless (silent); if Cloudflare blocks it, we retry
+    once with a visible window, which reliably clears the managed challenge using
+    the trust already established on this profile. Returns the process exit code.
+    '''
     if not config.PROFILE_DIR.exists():
         logResult('No browser profile found — run login.py first.')
         return 2
 
-    headless = config.HEADLESS and not headed
+    startHeadless = config.HEADLESS and not headed
     with sync_playwright() as pw:
-        context = pw.chromium.launch_persistent_context(
-            user_data_dir=str(config.PROFILE_DIR),
-            headless=headless,
-            # Real desktop UA clears CloudFront's headless 403 (see config.py).
-            user_agent=config.USER_AGENT,
-            args=config.BROWSER_ARGS,
-            viewport={'width': 1280, 'height': 900},
-        )
-        page = context.pages[0] if context.pages else context.new_page()
-
         try:
-            page.goto(config.BOXED_URL, wait_until='domcontentloaded', timeout=45000)
-            # boxed.gg hydrates its claim widgets client-side after load.
-            page.wait_for_timeout(config.PAGE_SETTLE_SECONDS * 1000)
-
-            # Fail fast and loud if the saved session has expired, rather than
-            # silently clicking nothing for weeks.
-            if page.locator(config.LOGGED_OUT_SELECTOR).first.is_visible():
-                logResult('Appears logged out — session expired. Re-run login.py.')
-                dumpFailure(page, 'logged_out')
+            return attemptClaim(pw, headless=startHeadless, keepOpen=keepOpen)
+        except CloudflareBlocked as block:
+            if not startHeadless:
+                # Already headed and still blocked — likely an interactive
+                # challenge that needs a human. Surface it clearly.
+                logResult(f'Cloudflare blocked even headed ({block}). '
+                          'Re-run login.py to refresh clearance.')
                 return 2
-
-            clicked = claimDrops(page)
-            if clicked:
-                logResult(f'Run complete — claimed {clicked} drop(s).')
-            else:
-                # Not necessarily an error: the pool may already be claimed.
-                logResult('Run complete — nothing claimable this pass.')
-                dumpFailure(page, 'nothing_claimed')
-
-            if keepOpen:
-                print('--keep-open set; press Enter to close the browser...')
-                input()
-            return 0
-
-        except Exception as exc:
-            logResult(f'Unexpected error: {exc!r}')
-            dumpFailure(page, 'error')
-            return 3
-        finally:
-            context.close()
+            logResult(f'Headless blocked by Cloudflare ({block}); retrying headed...')
+            try:
+                return attemptClaim(pw, headless=False, keepOpen=keepOpen)
+            except CloudflareBlocked as block2:
+                logResult(f'Headed retry also blocked ({block2}). '
+                          'Re-run login.py to refresh clearance.')
+                return 2
 
 
 def parseArgs() -> argparse.Namespace:
