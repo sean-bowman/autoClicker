@@ -130,12 +130,15 @@ LOGGED_OUT_SELECTOR = 'button:has-text("Log in"), button:has-text("Sign in"), a:
 # -- Watcher --------------------------------------------------------------- #
 
 # Seconds between polls of the drop state. Drops are ~30 min apart but the live
-# window is short, so poll frequently and cheaply.
-POLL_INTERVAL_SECONDS = 3
+# window can be as short as ~10 s, so poll briskly to catch it early.
+POLL_INTERVAL_SECONDS = 2
 
 # Randomised, human-like delay (seconds) before clicking the claim once it goes
-# live — the click should not be robotically instantaneous.
-CLICK_DELAY_RANGE = (1.5, 7.0)
+# live — the click should not be robotically instantaneous. Kept comfortably
+# inside the live window, which can be as short as ~10 s. The watcher re-checks
+# that the drop is still live after the delay, so an over-long delay just misses
+# that drop rather than erroring; widen if you want more variance and accept that.
+CLICK_DELAY_RANGE = (1.0, 4.0)
 
 # Reload the page if it has been open this long, to shed memory and keep the
 # Cloudflare clearance fresh while idle between drops.

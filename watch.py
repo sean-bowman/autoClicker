@@ -59,14 +59,34 @@ _REVEAL_CLAIM_JS = '''(text) => {
 
 _RESTORE_NAV_JS = '''() => { if (window.__nav) window.__nav.style.display = window.__navDisplay || ''; }'''
 
+# Between drops the claim button stays in the DOM but its panel is collapsed to
+# height 0 (overflow:hidden) — and Playwright's is_visible() returns True for it
+# anyway, because it ignores overflow-clipping. So we judge "claimable" by whether
+# the button is actually un-clipped: every overflow:hidden ancestor must have real
+# height and contain the button's centre. Collapsed panel -> not claimable.
+_CLAIMABLE_JS = '''(text) => {
+    const b = [...document.querySelectorAll('button')].find(x => (x.textContent || '').trim() === text);
+    if (!b || b.disabled) return false;
+    const br = b.getBoundingClientRect();
+    if (br.width < 5 || br.height < 5) return false;
+    const cy = br.top + br.height / 2;
+    let p = b.parentElement;
+    for (let i = 0; i < 15 && p; i++) {
+        const cs = getComputedStyle(p);
+        if (cs.overflow === 'hidden' || cs.overflowX === 'hidden' || cs.overflowY === 'hidden') {
+            const pr = p.getBoundingClientRect();
+            if (pr.height < 20) return false;            // collapsed panel
+            if (cy < pr.top || cy > pr.bottom) return false;  // clipped out of view
+        }
+        p = p.parentElement;
+    }
+    return true;
+}'''
+
 def isClaimable(page) -> bool:
-    '''True when the claim button is present, visible, and enabled.'''
-    button = claimButton(page)
-    if not button.count():
-        return False
-    first = button.first
+    '''True only when the claim button is present and genuinely un-clipped (live).'''
     try:
-        return first.is_visible() and first.is_enabled()
+        return bool(page.evaluate(_CLAIMABLE_JS, config.CLAIM_BUTTON_TEXT))
     except PlaywrightTimeoutError:
         return False
 
@@ -88,6 +108,10 @@ def claimNow(page) -> bool:
     delay = random.uniform(low, high)
     log(f'Drop is LIVE — claiming in {delay:.1f}s')
     time.sleep(delay)
+    # The live window can be short; if it closed during the delay, skip quietly.
+    if not isClaimable(page):
+        log('Drop window closed during delay — skipping')
+        return False
     try:
         point = page.evaluate(_REVEAL_CLAIM_JS, config.CLAIM_BUTTON_TEXT)
         if not point or not point.get('ok'):
