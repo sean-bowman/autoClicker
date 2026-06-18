@@ -84,7 +84,6 @@ USER_AGENT = (
     '(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
 )
 
-
 def launchOptions(headless: bool) -> dict:
     '''
     Build the keyword args shared by login.py and claim.py for
@@ -108,7 +107,6 @@ def launchOptions(headless: bool) -> dict:
         # Bundled Chromium fallback: spoof UA to clear the headless 403.
         options['user_agent'] = USER_AGENT
     return options
-
 
 def applyStealth(context) -> None:
     '''

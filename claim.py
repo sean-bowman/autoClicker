@@ -27,11 +27,9 @@ from playwright.sync_api import sync_playwright
 
 import config
 
-
 def timestamp() -> str:
     '''Local timestamp for log lines and filenames.'''
     return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
 
 def logResult(message: str) -> None:
     '''
@@ -45,7 +43,6 @@ def logResult(message: str) -> None:
     print(line)
     with open(config.LOG_DIR / 'claim.log', 'a', encoding='utf-8') as handle:
         handle.write(line + '\n')
-
 
 def dumpFailure(page, label: str) -> None:
     '''
@@ -64,7 +61,6 @@ def dumpFailure(page, label: str) -> None:
         logResult(f'Saved debug artifacts: {shotPath.name}, {htmlPath.name}')
     except Exception as exc:  # best-effort; never mask the original failure
         logResult(f'Could not save debug artifacts: {exc!r}')
-
 
 def claimDrops(page) -> int:
     '''
@@ -97,10 +93,8 @@ def claimDrops(page) -> int:
                 continue
     return clicked
 
-
 class CloudflareBlocked(Exception):
     '''Raised when the page is a Cloudflare/CloudFront block or challenge.'''
-
 
 def looksBlocked(response, page) -> bool:
     '''
@@ -125,7 +119,6 @@ def looksBlocked(response, page) -> bool:
     markers = ('verify you are human', 'cf-challenge', 'cf-browser-verification',
                'the request could not be satisfied')
     return any(marker in body for marker in markers)
-
 
 def attemptClaim(pw, headless: bool, keepOpen: bool) -> int:
     '''
@@ -176,7 +169,6 @@ def attemptClaim(pw, headless: bool, keepOpen: bool) -> int:
     finally:
         context.close()
 
-
 def runClaim(headed: bool, keepOpen: bool) -> int:
     '''
     Drive a claim pass, retrying headed if a headless run is blocked by Cloudflare.
@@ -208,7 +200,6 @@ def runClaim(headed: bool, keepOpen: bool) -> int:
                           'Re-run login.py to refresh clearance.')
                 return 2
 
-
 def parseArgs() -> argparse.Namespace:
     '''Parse CLI flags for the headed/keep-open debugging modes.'''
     parser = argparse.ArgumentParser(description='Claim boxed.gg gem drops (one shot).')
@@ -217,7 +208,6 @@ def parseArgs() -> argparse.Namespace:
     parser.add_argument('--keep-open', action='store_true',
                         help='Keep the browser open after the pass until Enter is pressed.')
     return parser.parse_args()
-
 
 if __name__ == '__main__':
     args = parseArgs()

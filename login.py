@@ -18,7 +18,6 @@ from playwright.sync_api import sync_playwright
 
 import config
 
-
 def runLogin() -> int:
     '''
     Launch a headed persistent-context browser and wait for the user to log in.
@@ -60,7 +59,6 @@ def runLogin() -> int:
 
     print('Session saved to', config.PROFILE_DIR)
     return 0
-
 
 if __name__ == '__main__':
     sys.exit(runLogin())
