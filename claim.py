@@ -135,6 +135,7 @@ def attemptClaim(pw, headless: bool, keepOpen: bool) -> int:
     # Same fingerprint as login.py (real Chrome, automation flags stripped), so
     # the clearance cookie earned at login stays valid. See config.py.
     context = pw.chromium.launch_persistent_context(**config.launchOptions(headless))
+    config.applyStealth(context)
     page = context.pages[0] if context.pages else context.new_page()
 
     try:

@@ -23,7 +23,7 @@ the session alive between runs with a persistent browser profile:
 3. **Windows Task Scheduler** — runs `claim.py` (via `runClaim.bat`) once an hour. `setupTask.ps1`
    registers the task.
 
-```
+```text
 login.py  --(persists session)-->  browserProfile/
                                           |
 Task Scheduler --hourly--> runClaim.bat --> claim.py --> claims drops + logs/
@@ -72,9 +72,11 @@ schtasks /run /tn BoxedGemClaimer   # fire a test run immediately
 
 ## Tuning selectors
 
-boxed.gg renders its claim controls client-side, behind login, so the exact selectors are
-discovered against the live DOM rather than guessed. `config.py` holds a `CLAIM_SELECTORS` list;
-`claim.py` tries each in order and clicks every visible, enabled match.
+boxed.gg surfaces gem drops inside a **chat overlay** — a drop message appears in chat with a
+claim control — and renders it client-side behind login, so the exact selectors are discovered
+against the live DOM rather than guessed. `config.py` holds a `CLAIM_SELECTORS` list (and an
+optional `CHAT_CONTAINER` to scope matches to the chat region); `claim.py` tries each selector in
+order and clicks every visible, enabled match.
 
 To refine them, run a headed pass that stays open so you can inspect the page:
 

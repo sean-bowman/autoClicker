@@ -33,6 +33,7 @@ def runLogin() -> int:
         # launchOptions() drives real Chrome with automation flags stripped so
         # Cloudflare's human-verification step can be passed manually.
         context = pw.chromium.launch_persistent_context(**config.launchOptions(headless=False))
+        config.applyStealth(context)
 
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(config.BOXED_URL, wait_until='domcontentloaded')
