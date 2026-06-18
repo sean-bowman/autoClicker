@@ -61,8 +61,11 @@ BROWSER_CHANNEL = 'chrome'  # or 'msedge'; None -> bundled Chromium
 # Launch args that reduce automation fingerprinting.
 BROWSER_ARGS = ['--disable-blink-features=AutomationControlled']
 
-# Default switches to suppress (these advertise automation to bot filters).
-IGNORE_DEFAULT_ARGS = ['--enable-automation']
+# Default switches to suppress. --enable-automation advertises automation to bot
+# filters. --no-sandbox is injected by Playwright and triggers Chrome's yellow
+# "unsupported command-line flag" security banner; dropping it lets Chrome run
+# with its sandbox enabled (more secure) and removes the banner.
+IGNORE_DEFAULT_ARGS = ['--enable-automation', '--no-sandbox']
 
 # Fallback UA, used ONLY when BROWSER_CHANNEL is None. The bundled headless build
 # otherwise sends "HeadlessChrome", which CloudFront 403s. Ignored for real Chrome.
