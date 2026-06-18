@@ -11,35 +11,23 @@ from pathlib import Path
 
 # -- Target ---------------------------------------------------------------- #
 
-# The page that surfaces the hourly gem-drop pool. boxed.gg gates this behind
-# login, so claim.py relies on the persisted browser profile to arrive here
+# The page that surfaces the gem-drop chat overlay. boxed.gg gates this behind
+# login, so the watcher relies on the persisted browser profile to arrive here
 # already authenticated.
 BOXED_URL = 'https://boxed.gg/'
-
-# How often Task Scheduler fires claim.py. The drop pool replenishes hourly per
-# the project objective, so an hourly trigger is the default cadence. This value
-# is consumed by setupTask.ps1 (in hours) and documented here for traceability.
-CLAIM_INTERVAL_HOURS = 1
 
 # -- Paths ----------------------------------------------------------------- #
 
 # Directory of this file, used to anchor every other path.
 BASE_DIR = Path(__file__).resolve().parent
 
-# Persistent Chromium profile. Logging in once (via login.py) writes cookies and
-# localStorage here; claim.py reuses it so it never has to handle the password.
+# Persistent Chrome profile. Logging in once (via login.py) writes cookies and
+# localStorage here; the watcher reuses it so it never has to handle the password.
 # Gitignored: it contains live session credentials.
 PROFILE_DIR = BASE_DIR / 'browserProfile'
 
-# Runtime logs, per-run result lines, and failure screenshots/HTML dumps.
-# Gitignored: pure runtime output.
+# Runtime logs, per-run result lines, and screenshots. Gitignored.
 LOG_DIR = BASE_DIR / 'logs'
-
-# -- Behaviour ------------------------------------------------------------- #
-
-# Run claim.py without a visible window by default (Task Scheduler context).
-# Override to False for the headed discovery/debugging run via the --headed flag.
-HEADLESS = True
 
 # boxed.gg sits behind Cloudflare/CloudFront, which fingerprints automated
 # browsers. Two independent defenses, both verified against the live site:
@@ -86,12 +74,12 @@ USER_AGENT = (
 
 def launchOptions(headless: bool) -> dict:
     '''
-    Build the keyword args shared by login.py and claim.py for
+    Build the keyword args shared by login.py and watch.py for
     launch_persistent_context, so both browsers present an identical fingerprint.
 
-    Centralised on purpose: the manual login (login.py) and the scheduled claim
-    (claim.py) MUST look like the same browser, or Cloudflare invalidates the
-    clearance cookie the login earned.
+    Centralised on purpose: the manual login (login.py) and the watcher (watch.py)
+    MUST look like the same browser, or Cloudflare invalidates the clearance cookie
+    the login earned.
     '''
     options: dict = {
         'user_data_dir': str(PROFILE_DIR),
@@ -113,7 +101,7 @@ def applyStealth(context) -> None:
     Apply the navigator.webdriver override to a freshly launched context.
 
     Kept separate from launchOptions() because add_init_script is a method on the
-    context, not a launch argument. Both login.py and claim.py call this so they
+    context, not a launch argument. Both login.py and watch.py call this so they
     present an identical, non-automated fingerprint to Cloudflare.
     '''
     context.add_init_script(STEALTH_INIT_SCRIPT)
@@ -123,28 +111,38 @@ def applyStealth(context) -> None:
 # claim controls hydrate after the initial document load.
 PAGE_SETTLE_SECONDS = 8
 
-# Candidate selectors for the claimable gem-drop control(s). On boxed.gg the
-# drops are surfaced inside a CHAT OVERLAY widget — a gem-drop message appears in
-# chat with a claim/collect control, rather than a button on the main page. The
-# exact markup is only knowable from a logged-in session, so this list is
-# populated during the guided discovery run (see README "Tuning selectors").
-# claim.py tries each in order and clicks every enabled match, so over-inclusive
-# entries are harmless. Ordered most-specific first.
+# -- Gem-drop overlay (chat) ----------------------------------------------- #
+
+# On boxed.gg the drop lives in the chat overlay. Between drops the widget shows
+# an "INCOMING / Gem Drop" header with a visual (non-textual) countdown; when a
+# drop goes live a panel expands containing a "Gem drop is now LIVE!" message and
+# the claim button below. The claim button is injected into the DOM only during
+# the claim window, so the watcher keys on its PRESENCE rather than the countdown.
 #
-# To restrict matching to the chat region (and avoid clicking unrelated page
-# controls), prefix selectors with CHAT_CONTAINER once its selector is known.
-CHAT_CONTAINER = ''  # e.g. '[class*="chat" i]' — set during discovery
+# The claim button is text-labeled; clicking it enters the drop ("Join to earn
+# free gems!"). A successful join removes the button from the widget.
+CLAIM_BUTTON_TEXT = 'Count Me In!'
 
-CLAIM_SELECTORS = [
-    # Placeholder candidates — refined during discovery against the live chat DOM.
-    'button:has-text("Claim")',
-    'button:has-text("Collect")',
-    '[class*="chat" i] button:has-text("Claim")',
-    '[class*="drop" i] button',
-    '[class*="gem" i] button',
-]
-
-# A selector that, when present, signals we are NOT logged in (e.g. a visible
-# "Log in" / "Sign in" control). claim.py uses this to fail fast with a clear
-# "session expired, re-run login.py" message instead of silently clicking nothing.
+# A selector that, when present, signals we are NOT logged in. Used to fail fast
+# with a clear "session expired, re-run login.py" message.
 LOGGED_OUT_SELECTOR = 'button:has-text("Log in"), button:has-text("Sign in"), a:has-text("Log in")'
+
+# -- Watcher --------------------------------------------------------------- #
+
+# Seconds between polls of the drop state. Drops are ~30 min apart but the live
+# window is short, so poll frequently and cheaply.
+POLL_INTERVAL_SECONDS = 3
+
+# Randomised, human-like delay (seconds) before clicking the claim once it goes
+# live — the click should not be robotically instantaneous.
+CLICK_DELAY_RANGE = (1.5, 7.0)
+
+# Reload the page if it has been open this long, to shed memory and keep the
+# Cloudflare clearance fresh while idle between drops.
+WATCH_RELOAD_EVERY_MINUTES = 25
+
+# The watcher runs real (headed) Chrome positioned off-screen. Headless real
+# Chrome is Cloudflare-blocked AND fails to reuse the logged-in profile (exit 21),
+# so an off-screen headed window is the practical "invisible" mode.
+WATCH_HEADLESS = False
+WINDOW_OFFSCREEN_ARG = '--window-position=-32000,-32000'

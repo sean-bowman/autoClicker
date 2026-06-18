@@ -2,11 +2,11 @@
 One-time interactive login for the boxed.gg gem-drop claimer.
 
 Run this once (and again only when the session expires). It opens a real,
-visible Chromium window using a persistent profile directory. You log in by
-hand — email + password, plus any captcha or 2FA the site throws up. When you
-close the window, Chromium has already written the resulting cookies and
-localStorage into PROFILE_DIR, so the headless claim.py can reuse the session
-without ever touching your password.
+visible Chrome window using a persistent profile directory. You log in by hand —
+email + password, plus any captcha or Cloudflare check the site throws up. When
+you close the window, Chrome has already written the resulting cookies and
+localStorage into PROFILE_DIR, so watch.py can reuse the session without ever
+touching your password.
 
 Usage:
     python login.py

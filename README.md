@@ -1,36 +1,39 @@
-# autoClicker — boxed.gg gem-drop claimer
+# autoClicker — boxed.gg gem-drop watcher
 
-A small, scheduled browser-automation utility that logs into [boxed.gg](https://boxed.gg),
-and on an hourly cadence claims the gem-drop pool that replenishes each hour — so the drops
-get collected without me sitting at the screen.
+A browser-automation utility that logs into [boxed.gg](https://boxed.gg) and continuously claims
+the gem drops that go live in the chat overlay roughly every 30 minutes — so the drops get
+collected without me sitting at the screen.
 
-Built with [Playwright](https://playwright.dev/python/) driving a real Chromium instance.
-A one-time manual login persists the session to disk; from then on a headless one-shot script,
-fired by Windows Task Scheduler, does the claiming.
+Built with [Playwright](https://playwright.dev/python/) driving a real, off-screen Google Chrome.
+A one-time manual login persists the session to disk; from then on a long-running watcher claims
+each drop the moment it appears, after a small randomised delay.
 
 ---
 
 ## How it works
 
-The design separates the human step (logging in) from the automated step (claiming), and keeps
-the session alive between runs with a persistent browser profile:
+The drop is surfaced in a chat overlay: between drops a header counts down; when a drop goes live,
+a panel expands with a **"Count Me In!"** button that exists only for a short window. A scheduled
+one-shot can't reliably land in that window, so this uses a continuous watcher instead.
 
 1. **`login.py`** — opens a visible browser once. You log in by hand (email + password, plus any
-   captcha/2FA). Closing the window persists cookies and `localStorage` into `browserProfile/`.
-2. **`claim.py`** — the scheduled one-shot. It reuses `browserProfile/` to arrive on boxed.gg
-   already authenticated, clicks every available claim control, logs the outcome, and exits. It is
-   idempotent — running it when nothing is claimable is a harmless no-op.
-3. **Windows Task Scheduler** — runs `claim.py` (via `runClaim.bat`) once an hour. `setupTask.ps1`
-   registers the task.
+   captcha / Cloudflare check). Closing the window persists cookies and `localStorage` into
+   `browserProfile/`.
+2. **`watch.py`** — the watcher. It reuses `browserProfile/` to arrive already authenticated, keeps
+   the page open, polls the gem-drop widget, and clicks the claim button the instant it goes live —
+   after a randomised human-like delay. It self-heals (reloads periodically, relaunches on crash,
+   warns if the session expires).
+3. **Windows Task Scheduler** — starts `watch.py` (via `runWatch.bat`) at logon and restarts it if
+   it dies. `setupTask.ps1` registers the task.
 
 ```text
 login.py  --(persists session)-->  browserProfile/
                                           |
-Task Scheduler --hourly--> runClaim.bat --> claim.py --> claims drops + logs/
+Task Scheduler --at logon--> runWatch.bat --> watch.py (runs continuously) --> claims drops + logs/
 ```
 
-Keeping the password out of the codebase entirely (it lives only in the browser session you create)
-is deliberate: nothing sensitive is ever written to a tracked file.
+The password never touches the codebase — it lives only in the browser session you create, so
+nothing sensitive is written to a tracked file.
 
 ---
 
@@ -41,7 +44,7 @@ Requires Python 3.10+ and a **real Google Chrome install** (see
 
 ```bash
 pip install -r requirements.txt
-playwright install chromium   # fallback browser, if Chrome is unavailable
+playwright install chromium   # fallback browser, only if Chrome is unavailable
 ```
 
 **1. Log in once:**
@@ -52,65 +55,65 @@ python login.py
 
 A browser opens on boxed.gg. Log in, then close the window. The session is saved.
 
-**2. Verify a claim run:**
+**2. Try the watcher:**
 
 ```bash
-python claim.py --headed        # watch it work
-python claim.py                 # headless, as it will run scheduled
+python watch.py --visible --minutes 35   # visible window, runs through one drop
+python watch.py --observe                # log drop state but never click (discovery)
+python watch.py                          # off-screen, runs forever (scheduled mode)
 ```
 
-Check `logs/claim.log` for the result line.
+Watch `logs/watch.log` for `Drop is LIVE — claiming …` / `Claimed — joined the drop`, and the
+`claim_*.png` proof screenshots.
 
 **3. Schedule it (run once, from an elevated PowerShell):**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\setupTask.ps1
-schtasks /run /tn BoxedGemClaimer   # fire a test run immediately
+schtasks /run /tn BoxedGemWatcher    # start it now without logging out
 ```
-
----
-
-## Tuning selectors
-
-boxed.gg surfaces gem drops inside a **chat overlay** — a drop message appears in chat with a
-claim control — and renders it client-side behind login, so the exact selectors are discovered
-against the live DOM rather than guessed. `config.py` holds a `CLAIM_SELECTORS` list (and an
-optional `CHAT_CONTAINER` to scope matches to the chat region); `claim.py` tries each selector in
-order and clicks every visible, enabled match.
-
-To refine them, run a headed pass that stays open so you can inspect the page:
-
-```bash
-python claim.py --headed --keep-open
-```
-
-On any pass where nothing is claimed, `claim.py` saves a full-page screenshot and an HTML dump to
-`logs/` — open those to find the right selector and add it to `CLAIM_SELECTORS`.
 
 ---
 
 ## Beating Cloudflare
 
-boxed.gg sits behind Cloudflare, which actively fingerprints automated browsers. Two things were
-needed to get through:
+boxed.gg sits behind Cloudflare, which actively fingerprints automated browsers. Getting through
+took three things, all in `config.launchOptions()` / `config.applyStealth()`:
 
-- **Drive real Google Chrome, not Playwright's bundled "Chrome for Testing".** The Testing build
+- **Drive real Google Chrome, not Playwright's bundled "Chrome for Testing."** The Testing build
   leaves `navigator.webdriver = true` and trips Cloudflare's human-verification challenge. Pointing
-  Playwright at the installed Chrome (`channel='chrome'`) and stripping the `--enable-automation`
-  switch reports `navigator.webdriver = false` and clears the challenge during manual login.
-- **Run headed when challenged.** Headless Chrome reliably gets a `403` from Cloudflare even with a
-  real-Chrome fingerprint. So `claim.py` starts headless (silent) and, if it detects a block,
-  **automatically retries with a visible window** — which clears the managed challenge using the
-  trust already established on the persisted profile. If even the headed retry is blocked, it tells
-  you to re-run `login.py` to refresh the clearance cookie.
+  Playwright at the installed Chrome (`channel='chrome'`) clears it.
+- **Strip the automation tells.** Remove the `--enable-automation` switch and redefine
+  `navigator.webdriver` to `undefined` via an init script (rather than the
+  `--disable-blink-features` flag, which trips Chrome's unsupported-flag banner).
+- **Run headed, off-screen.** Headless Chrome reliably gets a `403` even with a real-Chrome
+  fingerprint, so the watcher runs a real window positioned at `-32000,-32000` — invisible, but
+  fully rendered so Cloudflare is satisfied.
 
-All of this lives in `config.launchOptions()`; set `BROWSER_CHANNEL = None` to fall back to bundled
-Chromium (which then uses a spoofed user-agent to dodge the headless `403`).
+Set `BROWSER_CHANNEL = None` to fall back to bundled Chromium (which then uses a spoofed user-agent
+to dodge the headless `403`).
+
+---
+
+## Clicking the claim button
+
+Two quirks made the claim click non-trivial, handled in `watch.py`:
+
+- The button sits at the top of the chat **behind the full-width sticky nav** (z-40), whose
+  icon-buttons intercept ordinary clicks. The watcher momentarily hides the nav so the button
+  reflows into the clear, then clicks it in place.
+- The site **ignores synthetic (untrusted) clicks**, and the live progress bar **re-renders the
+  button constantly** (so a cached element node goes stale). The watcher therefore measures the
+  button fresh and delivers a real, trusted `mouse.click` at its coordinate. Success is confirmed by
+  the button disappearing from the widget.
+
+---
 
 ## Configuration
 
-All tunables live in [`config.py`](config.py): target URL, claim cadence, the persistent-profile
-and log paths, page-settle timing, the selector list, and the browser-channel / fingerprint options.
+All tunables live in [`config.py`](config.py): target URL, profile/log paths, the claim button text,
+poll interval, the randomised click-delay range, reload cadence, and the browser-channel /
+fingerprint options.
 
 ---
 
@@ -118,11 +121,11 @@ and log paths, page-settle timing, the selector list, and the browser-channel / 
 
 | File | Role |
 |------|------|
-| `config.py` | Central configuration (URL, paths, selectors, timing) |
+| `config.py` | Central configuration and launch/fingerprint options |
 | `login.py` | One-time interactive login; persists the session |
-| `claim.py` | One-shot headless claimer (the scheduled job) |
-| `runClaim.bat` | Wrapper Task Scheduler invokes |
-| `setupTask.ps1` | Registers the hourly scheduled task |
+| `watch.py` | The continuous gem-drop watcher (default; `--observe`, `--visible`, `--minutes`) |
+| `runWatch.bat` | Wrapper Task Scheduler invokes |
+| `setupTask.ps1` | Registers the logon-triggered, auto-restarting task |
 | `legacy/autoClickerScreenMatch.py` | The original v1 approach (see below) |
 
 ---
@@ -133,11 +136,11 @@ The first version (`legacy/autoClickerScreenMatch.py`) took a fundamentally diff
 OS-level screen automation with `pyautogui` + OpenCV template matching. It screenshotted the
 desktop, looked for a captured button image with `cv2.matchTemplate`, and clicked wherever it
 matched. It worked, but was fragile — dependent on screen resolution, window position, and a
-pre-captured template image, and blind to anything happening off the active screen.
+pre-captured template image, and blind to anything off the active screen.
 
 The current version replaces that with browser automation: it operates on the DOM directly, runs
-headless, survives in the background, and is driven by the page's actual structure rather than its
-pixels. Kept here for provenance.
+invisibly in the background, and is driven by the page's actual structure rather than its pixels.
+Kept here for provenance.
 
 ---
 

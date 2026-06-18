@@ -1,18 +1,18 @@
 <#
 .SYNOPSIS
-    Register (or refresh) the hourly Windows Scheduled Task that claims boxed.gg
-    gem drops.
+    Register (or refresh) the Windows Scheduled Task that runs the boxed.gg
+    gem-drop watcher continuously.
 
 .DESCRIPTION
-    Creates a task named "BoxedGemClaimer" that runs runClaim.bat once per hour.
-    The task is registered for the current user and runs whether or not that user
-    is logged in. Re-running this script is safe: it removes any existing task of
-    the same name first, so it doubles as an updater.
+    Creates a task named "BoxedGemWatcher" that starts runWatch.bat at logon and
+    keeps it running. The watcher is a long-lived process (it polls the chat and
+    claims each drop as it goes live), so the task is configured to start at logon,
+    never time out, and restart automatically if the process dies. Re-running this
+    script is safe: it removes any existing task of the same name first.
 
-.NOTES
-    Run from an elevated PowerShell prompt the first time (registering a task that
-    runs while logged off requires it). Stored credentials are handled by the OS,
-    not by this repo.
+    The watcher drives a real (off-screen) Chrome window, which needs an
+    interactive desktop session — hence the logon trigger rather than a
+    run-while-logged-off task.
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\setupTask.ps1
@@ -20,12 +20,12 @@
 
 $ErrorActionPreference = 'Stop'
 
-$taskName = 'BoxedGemClaimer'
+$taskName = 'BoxedGemWatcher'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$batPath = Join-Path $scriptDir 'runClaim.bat'
+$batPath = Join-Path $scriptDir 'runWatch.bat'
 
 if (-not (Test-Path $batPath)) {
-    throw "runClaim.bat not found at $batPath"
+    throw "runWatch.bat not found at $batPath"
 }
 
 # Remove any prior registration so this script is idempotent.
@@ -35,25 +35,26 @@ if ($existing) {
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
 }
 
-# Action: run the .bat wrapper from the repo directory.
+# Action: run the watcher wrapper from the repo directory.
 $action = New-ScheduledTaskAction -Execute $batPath -WorkingDirectory $scriptDir
 
-# Trigger: start now, then repeat every hour indefinitely. The drop pool
-# replenishes hourly, matching CLAIM_INTERVAL_HOURS in config.py.
-$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
-    -RepetitionInterval (New-TimeSpan -Hours 1)
+# Trigger: at user logon (the watcher needs the interactive session for Chrome).
+$trigger = New-ScheduledTaskTrigger -AtLogOn
 
-# Settings: allow on-battery operation and start late if a run was missed
-# (e.g. the machine was asleep at the top of the hour).
+# Settings: run indefinitely, restart on failure, only one instance at a time.
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
     -StartWhenAvailable `
-    -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+    -RestartCount 999 `
+    -RestartInterval (New-TimeSpan -Minutes 2) `
+    -MultipleInstances IgnoreNew `
+    -ExecutionTimeLimit (New-TimeSpan -Seconds 0)   # 0 = no time limit
 
 Register-ScheduledTask -TaskName $taskName `
     -Action $action -Trigger $trigger -Settings $settings `
-    -Description 'Claims the hourly boxed.gg gem-drop pool.' | Out-Null
+    -Description 'Continuously watches boxed.gg and claims each gem drop.' | Out-Null
 
-Write-Host "Registered scheduled task '$taskName' (hourly)."
-Write-Host "Trigger a test run now with:  schtasks /run /tn $taskName"
+Write-Host "Registered scheduled task '$taskName' (starts at logon, keeps running)."
+Write-Host "Start it now without logging out:  schtasks /run /tn $taskName"
+Write-Host "Stop it:                           schtasks /end /tn $taskName"
