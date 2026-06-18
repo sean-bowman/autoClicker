@@ -1,0 +1,22 @@
+# --- Claude Code working files -------------------------------------------- #
+# Any .claude folder/file generated locally is tooling, not part of the project.
+.claude/
+.claude
+
+# --- Live session / secrets ----------------------------------------------- #
+# Persistent browser profile holds the logged-in boxed.gg session — never commit.
+browserProfile/
+# Any credential files, if ever added.
+*.env
+.env
+
+# --- Runtime output -------------------------------------------------------- #
+logs/
+*.png
+*.html
+
+# --- Python ---------------------------------------------------------------- #
+__pycache__/
+*.py[cod]
+.venv/
+venv/
