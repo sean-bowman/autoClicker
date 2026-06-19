@@ -32,7 +32,12 @@ def log(message: str) -> None:
     '''Append a timestamped line to the watcher log and echo to stdout.'''
     config.LOG_DIR.mkdir(parents=True, exist_ok=True)
     line = f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] {message}'
-    print(line, flush=True)
+    # Under pythonw.exe (the scheduled, windowless mode) sys.stdout is None, so a
+    # bare print would crash — guard it. The file log is the durable record.
+    try:
+        print(line, flush=True)
+    except Exception:
+        pass
     with open(config.LOG_DIR / 'watch.log', 'a', encoding='utf-8') as fh:
         fh.write(line + '\n')
 

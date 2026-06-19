@@ -66,12 +66,26 @@ python watch.py                          # off-screen, runs forever (scheduled m
 Watch `logs/watch.log` for `Drop is LIVE — claiming …` / `Claimed — joined the drop`, and the
 `claim_*.png` proof screenshots.
 
-**3. Schedule it (run once, from an elevated PowerShell):**
+**3. Run it in the background (one-time setup):**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\setupTask.ps1
-schtasks /run /tn BoxedGemWatcher    # start it now without logging out
 ```
+
+This registers a Scheduled Task (`BoxedGemWatcher`) that launches the watcher with
+`pythonw.exe` — no console window — at every logon, restarts it if it dies, and starts it
+immediately. It runs in the background for as long as you're logged on (a real, off-screen
+Chrome window needs your interactive session, so it can't run while logged off). Pass
+`-Python` if your interpreter isn't at the default path. Manage it with:
+
+```powershell
+schtasks /end   /tn BoxedGemWatcher    # stop
+schtasks /run   /tn BoxedGemWatcher    # start
+Unregister-ScheduledTask -TaskName BoxedGemWatcher -Confirm:$false   # remove
+```
+
+Don't run a manual `watch.py` while the task is running — both would fight over the same
+browser profile. Watch progress in `logs/watch.log`.
 
 ---
 
