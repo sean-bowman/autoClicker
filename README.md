@@ -97,6 +97,14 @@ The watcher runs as the **`BoxedGemWatcher`** Scheduled Task, launched windowles
 the Python process brings it back within a couple of minutes: to stop it for real, act on the
 task, not just the process.
 
+**Easiest: the on/off control panel.** Double-click `control.bat` (or run `pythonw control.py`)
+for a small always-on-top window with one toggle. Turning it OFF ends the task, disables it, and
+force-stops the watcher and its off-screen Chrome, so nothing keeps using CPU/RAM; turning it ON
+re-enables and starts it. The window shows live status (RUNNING / STOPPED / OFF). Headless
+equivalents for scripting: `python control.py --status`, `--on`, `--off`.
+
+The manual route, without the GUI:
+
 **Stop it now (clean):**
 
 ```powershell

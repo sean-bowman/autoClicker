@@ -29,6 +29,11 @@ PROFILE_DIR = BASE_DIR / 'browserProfile'
 # Runtime logs, per-run result lines, and screenshots. Gitignored.
 LOG_DIR = BASE_DIR / 'logs'
 
+# Name of the Windows Scheduled Task that runs the watcher in the background
+# (registered by setupTask.ps1). The control GUI (control.py) toggles this task
+# on and off, so both read the name from here.
+TASK_NAME = 'BoxedGemWatcher'
+
 # boxed.gg sits behind Cloudflare/CloudFront, which fingerprints automated
 # browsers. Two independent defenses, both verified against the live site:
 #
