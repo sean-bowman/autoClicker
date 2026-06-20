@@ -84,8 +84,61 @@ schtasks /run   /tn BoxedGemWatcher    # start
 Unregister-ScheduledTask -TaskName BoxedGemWatcher -Confirm:$false   # remove
 ```
 
-Don't run a manual `watch.py` while the task is running — both would fight over the same
+Don't run a manual `watch.py` while the task is running; both would fight over the same
 browser profile. Watch progress in `logs/watch.log`.
+
+---
+
+## Stopping & managing the watcher
+
+The watcher runs as the **`BoxedGemWatcher`** Scheduled Task, launched windowless via
+`pythonw.exe`, so there is no console window or tray icon to close. It also **auto-restarts**
+(configured for 999 restarts at a 2-minute interval) and starts at every logon, so killing only
+the Python process brings it back within a couple of minutes: to stop it for real, act on the
+task, not just the process.
+
+**Stop it now (clean):**
+
+```powershell
+schtasks /end /tn BoxedGemWatcher          # ends the watcher and its off-screen Chrome
+```
+
+**Keep it from coming back** (otherwise it restarts at the next logon):
+
+```powershell
+schtasks /change /tn BoxedGemWatcher /disable
+```
+
+Re-enable it later:
+
+```powershell
+schtasks /change /tn BoxedGemWatcher /enable
+schtasks /run    /tn BoxedGemWatcher
+```
+
+**Find the live process** (the PID changes every run):
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='pythonw.exe'" |
+  Where-Object CommandLine -like '*watch.py*' | Select-Object ProcessId, CommandLine
+```
+
+**Force-kill if it is wedged** (the watcher plus any orphaned profile Chrome):
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='pythonw.exe'" | ? CommandLine -like '*watch.py*' | % { Stop-Process -Id $_.ProcessId -Force }
+Get-CimInstance Win32_Process -Filter "Name='chrome.exe'"   | ? CommandLine -like '*autoClicker*browserProfile*' | % { Stop-Process -Id $_.ProcessId -Force }
+```
+
+**Other handles:**
+
+- GUI: run `taskschd.msc`, then Task Scheduler Library -> `BoxedGemWatcher` (right-click to End, Disable, or Delete).
+- Remove the task entirely: `Unregister-ScheduledTask -TaskName BoxedGemWatcher -Confirm:$false`
+- Live log: `logs/watch.log`
+
+What you'll see in Task Manager: one `pythonw.exe` running `watch.py`, plus a cluster of
+`chrome.exe` children from `browserProfile/` (renderer, GPU, and so on). Ending the task closes
+all of them; only kill Chrome by hand if a crash orphans it.
 
 ---
 
