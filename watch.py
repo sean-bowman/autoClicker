@@ -4,7 +4,7 @@ Continuous gem-drop watcher for boxed.gg.
 boxed.gg drops a gem pool roughly every 30 minutes, but the claim control only
 exists for a short window around each drop. A scheduled one-shot can't reliably
 land in that window, so this watcher keeps one browser open, polls the chat
-gem-drop widget, and clicks the claim button the instant it appears — after a
+gem-drop widget, and clicks the claim button the instant it appears: after a
 small randomised human-like delay so the click isn't robotically instantaneous.
 
 It runs real (headed) Chrome positioned off-screen: headless real Chrome is
@@ -33,7 +33,7 @@ def log(message: str) -> None:
     config.LOG_DIR.mkdir(parents=True, exist_ok=True)
     line = f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] {message}'
     # Under pythonw.exe (the scheduled, windowless mode) sys.stdout is None, so a
-    # bare print would crash — guard it. The file log is the durable record.
+    # bare print would crash: guard it. The file log is the durable record.
     try:
         print(line, flush=True)
     except Exception:
@@ -51,7 +51,7 @@ def claimButton(page):
 # button reflows into the clear), confirm the button is now the topmost element
 # at its centre, and report the coordinate for a real trusted mouse click. The
 # button is measured fresh each time because the live progress bar re-renders it
-# constantly — a cached node goes stale. arguments[0] is the button text.
+# constantly -- a cached node goes stale. arguments[0] is the button text.
 _REVEAL_CLAIM_JS = '''(text) => {
     const nav = document.querySelector('#top-nav--desktop');
     if (nav) { window.__nav = nav; window.__navDisplay = nav.style.display; nav.style.setProperty('display', 'none', 'important'); }
@@ -65,7 +65,7 @@ _REVEAL_CLAIM_JS = '''(text) => {
 _RESTORE_NAV_JS = '''() => { if (window.__nav) window.__nav.style.display = window.__navDisplay || ''; }'''
 
 # Between drops the claim button stays in the DOM but its panel is collapsed to
-# height 0 (overflow:hidden) — and Playwright's is_visible() returns True for it
+# height 0 (overflow:hidden) -- and Playwright's is_visible() returns True for it
 # anyway, because it ignores overflow-clipping. So we judge "claimable" by whether
 # the button is actually un-clipped: every overflow:hidden ancestor must have real
 # height and contain the button's centre. Collapsed panel -> not claimable.
@@ -111,11 +111,11 @@ def claimNow(page) -> bool:
     '''
     low, high = config.CLICK_DELAY_RANGE
     delay = random.uniform(low, high)
-    log(f'Drop is LIVE — claiming in {delay:.1f}s')
+    log(f'Drop is LIVE: claiming in {delay:.1f}s')
     time.sleep(delay)
     # The live window can be short; if it closed during the delay, skip quietly.
     if not isClaimable(page):
-        log('Drop window closed during delay — skipping')
+        log('Drop window closed during delay: skipping')
         return False
     try:
         point = page.evaluate(_REVEAL_CLAIM_JS, config.CLAIM_BUTTON_TEXT)
@@ -139,7 +139,7 @@ def claimNow(page) -> bool:
         page.screenshot(path=str(config.LOG_DIR / f'claim_{stamp}.png'))
     except Exception:
         pass
-    log('Claimed — joined the drop' if joined else 'Clicked, but button still present (claim unconfirmed)')
+    log('Claimed: joined the drop' if joined else 'Clicked, but button still present (claim unconfirmed)')
     return joined
 
 def watchSession(pw, headless: bool, offscreen: bool, observe: bool, deadline: float) -> str:
@@ -176,7 +176,7 @@ def watchSession(pw, headless: bool, offscreen: bool, observe: bool, deadline: f
                     if isLoggedOut(page):
                         loggedOutStreak += 1
                         if loggedOutStreak in (1, 20):  # log first and persistent
-                            log('SESSION EXPIRED — re-run login.py to refresh login')
+                            log('SESSION EXPIRED: re-run login.py to refresh login')
                     else:
                         loggedOutStreak = 0
                 # Periodic reload to shed memory and keep clearance fresh.
@@ -210,7 +210,7 @@ def parseArgs() -> argparse.Namespace:
 def main() -> int:
     args = parseArgs()
     if not config.PROFILE_DIR.exists():
-        log('No browser profile found — run login.py first.')
+        log('No browser profile found: run login.py first.')
         return 2
     deadline = time.time() + args.minutes * 60 if args.minutes else float('inf')
     log(f'watcher starting (poll {config.POLL_INTERVAL_SECONDS}s, '

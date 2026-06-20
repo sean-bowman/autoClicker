@@ -2,7 +2,7 @@
 One-time interactive login for the boxed.gg gem-drop claimer.
 
 Run this once (and again only when the session expires). It opens a real,
-visible Chrome window using a persistent profile directory. You log in by hand —
+visible Chrome window using a persistent profile directory. You log in by hand:
 email + password, plus any captcha or Cloudflare check the site throws up. When
 you close the window, Chrome has already written the resulting cookies and
 localStorage into PROFILE_DIR, so watch.py can reuse the session without ever
@@ -53,7 +53,7 @@ def runLogin() -> int:
             # page.wait_for_event('close') resolves when the user closes the tab/window.
             page.wait_for_event('close', timeout=0)
         except Exception:
-            # Context torn down out from under the page — that is the expected
+            # Context torn down out from under the page: that is the expected
             # path when the whole window is closed.
             pass
 

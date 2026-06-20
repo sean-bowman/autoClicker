@@ -4,7 +4,7 @@
 .claude
 
 # --- Live session / secrets ----------------------------------------------- #
-# Persistent browser profile holds the logged-in boxed.gg session — never commit.
+# Persistent browser profile holds the logged-in boxed.gg session -- never commit.
 browserProfile/
 # Any credential files, if ever added.
 *.env

@@ -1,7 +1,7 @@
-# autoClicker — boxed.gg gem-drop watcher
+# autoClicker -- boxed.gg gem-drop watcher
 
 A browser-automation utility that logs into [boxed.gg](https://boxed.gg) and continuously claims
-the gem drops that go live in the chat overlay roughly every 30 minutes — so the drops get
+the gem drops that go live in the chat overlay roughly every 30 minutes: so the drops get
 collected without me sitting at the screen.
 
 Built with [Playwright](https://playwright.dev/python/) driving a real, off-screen Google Chrome.
@@ -16,14 +16,14 @@ The drop is surfaced in a chat overlay: between drops a header counts down; when
 a panel expands with a **"Count Me In!"** button that exists only for a short window. A scheduled
 one-shot can't reliably land in that window, so this uses a continuous watcher instead.
 
-1. **`login.py`** — opens a visible browser once. You log in by hand (email + password, plus any
+1. **`login.py`**: opens a visible browser once. You log in by hand (email + password, plus any
    captcha / Cloudflare check). Closing the window persists cookies and `localStorage` into
    `browserProfile/`.
-2. **`watch.py`** — the watcher. It reuses `browserProfile/` to arrive already authenticated, keeps
-   the page open, polls the gem-drop widget, and clicks the claim button the instant it goes live —
+2. **`watch.py`**: the watcher. It reuses `browserProfile/` to arrive already authenticated, keeps
+   the page open, polls the gem-drop widget, and clicks the claim button the instant it goes live:
    after a randomised human-like delay. It self-heals (reloads periodically, relaunches on crash,
    warns if the session expires).
-3. **Windows Task Scheduler** — starts `watch.py` (via `runWatch.bat`) at logon and restarts it if
+3. **Windows Task Scheduler**: starts `watch.py` (via `runWatch.bat`) at logon and restarts it if
    it dies. `setupTask.ps1` registers the task.
 
 ```text
@@ -32,7 +32,7 @@ login.py  --(persists session)-->  browserProfile/
 Task Scheduler --at logon--> runWatch.bat --> watch.py (runs continuously) --> claims drops + logs/
 ```
 
-The password never touches the codebase — it lives only in the browser session you create, so
+The password never touches the codebase: it lives only in the browser session you create, so
 nothing sensitive is written to a tracked file.
 
 ---
@@ -63,7 +63,7 @@ python watch.py --observe                # log drop state but never click (disco
 python watch.py                          # off-screen, runs forever (scheduled mode)
 ```
 
-Watch `logs/watch.log` for `Drop is LIVE — claiming …` / `Claimed — joined the drop`, and the
+Watch `logs/watch.log` for `Drop is LIVE, claiming …` / `Claimed, joined the drop`, and the
 `claim_*.png` proof screenshots.
 
 **3. Run it in the background (one-time setup):**
@@ -73,7 +73,7 @@ powershell -ExecutionPolicy Bypass -File .\setupTask.ps1
 ```
 
 This registers a Scheduled Task (`BoxedGemWatcher`) that launches the watcher with
-`pythonw.exe` — no console window — at every logon, restarts it if it dies, and starts it
+`pythonw.exe`, no console window, at every logon, restarts it if it dies, and starts it
 immediately. It runs in the background for as long as you're logged on (a real, off-screen
 Chrome window needs your interactive session, so it can't run while logged off). Pass
 `-Python` if your interpreter isn't at the default path. Manage it with:
@@ -154,7 +154,7 @@ took three things, all in `config.launchOptions()` / `config.applyStealth()`:
   `navigator.webdriver` to `undefined` via an init script (rather than the
   `--disable-blink-features` flag, which trips Chrome's unsupported-flag banner).
 - **Run headed, off-screen.** Headless Chrome reliably gets a `403` even with a real-Chrome
-  fingerprint, so the watcher runs a real window positioned at `-32000,-32000` — invisible, but
+  fingerprint, so the watcher runs a real window positioned at `-32000,-32000`: invisible, but
   fully rendered so Cloudflare is satisfied.
 
 Set `BROWSER_CHANNEL = None` to fall back to bundled Chromium (which then uses a spoofed user-agent
@@ -197,12 +197,12 @@ fingerprint options.
 
 ---
 
-## v1 — the screen-matching approach
+## v1 -- the screen-matching approach
 
 The first version (`legacy/autoClickerScreenMatch.py`) took a fundamentally different tack:
 OS-level screen automation with `pyautogui` + OpenCV template matching. It screenshotted the
 desktop, looked for a captured button image with `cv2.matchTemplate`, and clicked wherever it
-matched. It worked, but was fragile — dependent on screen resolution, window position, and a
+matched. It worked, but was fragile: dependent on screen resolution, window position, and a
 pre-captured template image, and blind to anything off the active screen.
 
 The current version replaces that with browser automation: it operates on the DOM directly, runs

@@ -44,7 +44,7 @@ LOG_DIR = BASE_DIR / 'logs'
 # Set BROWSER_CHANNEL = None to fall back to Playwright's bundled Chromium (e.g.
 # on a machine without Chrome installed); the USER_AGENT spoof below is then
 # applied to dodge the headless 403. With a real channel we deliberately do NOT
-# override the UA — Chrome's native UA must match its real fingerprint.
+# override the UA -- Chrome's native UA must match its real fingerprint.
 BROWSER_CHANNEL = 'chrome'  # or 'msedge'; None -> bundled Chromium
 
 # Extra launch args. Empty by default: the only fingerprint we need to mask
@@ -134,7 +134,7 @@ LOGGED_OUT_SELECTOR = 'button:has-text("Log in"), button:has-text("Sign in"), a:
 POLL_INTERVAL_SECONDS = 2
 
 # Randomised, human-like delay (seconds) before clicking the claim once it goes
-# live — the click should not be robotically instantaneous. Kept comfortably
+# live -- the click should not be robotically instantaneous. Kept comfortably
 # inside the live window, which can be as short as ~10 s. The watcher re-checks
 # that the drop is still live after the delay, so an over-long delay just misses
 # that drop rather than erroring; widen if you want more variance and accept that.

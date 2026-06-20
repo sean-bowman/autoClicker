@@ -6,8 +6,8 @@
 .DESCRIPTION
     Creates a task named "BoxedGemWatcher" that launches watch.py with pythonw.exe
     (so there is no console window) at logon, and keeps it running. The watcher is
-    a long-lived process — it keeps boxed.gg open off-screen, polls the chat, and
-    claims each drop as it goes live — so the task is configured to:
+    a long-lived process: it keeps boxed.gg open off-screen, polls the chat, and
+    claims each drop as it goes live: so the task is configured to:
       * start at logon (a real, off-screen Chrome window needs the interactive
         session, so this can't run while logged off),
       * never time out,
