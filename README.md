@@ -66,22 +66,22 @@ python watch.py                          # off-screen, runs forever (scheduled m
 Watch `logs/watch.log` for `Drop is LIVE, claiming …` / `Claimed, joined the drop`, and the
 `claim_*.png` proof screenshots.
 
-**3. Run it in the background (one-time setup):**
+**3. Register the background task (one-time setup):**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\setupTask.ps1
 ```
 
 This registers a Scheduled Task (`BoxedGemWatcher`) that launches the watcher with
-`pythonw.exe`, no console window, at every logon, restarts it if it dies, and starts it
-immediately. It runs in the background for as long as you're logged on (a real, off-screen
-Chrome window needs your interactive session, so it can't run while logged off). Pass
-`-Python` if your interpreter isn't at the default path. Manage it with:
+`pythonw.exe` (no console window) and restarts it if it dies. The task is **on-demand only: it
+does not auto-launch at logon.** You start and stop it yourself with the control panel (below).
+It still needs an interactive session (a real, off-screen Chrome window), so only run it while
+logged on. Pass `-Python` if your interpreter isn't at the default path.
+
+Then start it whenever you want it running:
 
 ```powershell
-schtasks /end   /tn BoxedGemWatcher    # stop
-schtasks /run   /tn BoxedGemWatcher    # start
-Unregister-ScheduledTask -TaskName BoxedGemWatcher -Confirm:$false   # remove
+python control.py --on    # or double-click control.bat for the GUI toggle
 ```
 
 Don't run a manual `watch.py` while the task is running; both would fight over the same
@@ -92,10 +92,10 @@ browser profile. Watch progress in `logs/watch.log`.
 ## Stopping & managing the watcher
 
 The watcher runs as the **`BoxedGemWatcher`** Scheduled Task, launched windowless via
-`pythonw.exe`, so there is no console window or tray icon to close. It also **auto-restarts**
-(configured for 999 restarts at a 2-minute interval) and starts at every logon, so killing only
-the Python process brings it back within a couple of minutes: to stop it for real, act on the
-task, not just the process.
+`pythonw.exe`, so there is no console window or tray icon to close. The task is on-demand (it
+does not auto-launch at logon), but while it is running it **auto-restarts** (configured for 999
+restarts at a 2-minute interval), so killing only the Python process can bring it back within a
+couple of minutes: to stop it for real, act on the task, not just the process.
 
 **Easiest: the on/off control panel.** Double-click `control.bat` (or run `pythonw control.py`)
 for a small always-on-top window with one toggle. Turning it OFF ends the task, disables it, and
