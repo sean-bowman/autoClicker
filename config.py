@@ -26,8 +26,14 @@ BASE_DIR = Path(__file__).resolve().parent
 # Gitignored: it contains live session credentials.
 PROFILE_DIR = BASE_DIR / 'browserProfile'
 
-# Runtime logs, per-run result lines, and screenshots. Gitignored.
+# Runtime logs and per-run result lines (watch.log). Gitignored.
 LOG_DIR = BASE_DIR / 'logs'
+
+# Small JSON status file the watcher writes and the control GUI reads, so the
+# always-on-top panel can show the live account balance and gems-this-session
+# without talking to the watcher process directly. File-based IPC keeps the two
+# processes decoupled. Gitignored.
+STATUS_FILE = LOG_DIR / 'status.json'
 
 # Name of the Windows Scheduled Task that runs the watcher in the background
 # (registered by setupTask.ps1). The control GUI (control.py) toggles this task
@@ -131,6 +137,28 @@ CLAIM_BUTTON_TEXT = 'Count Me In!'
 # A selector that, when present, signals we are NOT logged in. Used to fail fast
 # with a clear "session expired, re-run login.py" message.
 LOGGED_OUT_SELECTOR = 'button:has-text("Log in"), button:has-text("Sign in"), a:has-text("Log in")'
+
+# -- Account gem balance --------------------------------------------------- #
+
+# The persistent ACCOUNT gem total (running balance) has no dedicated element id
+# of its own, and its innermost class is a hashed CSS-module name that changes on
+# every site rebuild -- so neither is safe to hard-code. Instead the watcher
+# scopes a structural search to this nav container: within it, the account
+# balance is the only on-screen element whose text is a multi-digit, comma-
+# grouped number (the shard count is a single digit; the drop-pool and chat
+# figures live in #chat, outside this scope). #top-nav--desktop is the same id
+# the claim logic already relies on, so this is as stable an anchor as we have.
+#
+# Re-run `python watch.py --probe-balance` if boxed.gg restructures its nav: it
+# prints each on-screen balance-looking number with its ancestor-id chain, which
+# is what identified this scope.
+ACCOUNT_BALANCE_SCOPE = '#top-nav--desktop'
+
+# The shard counter shares the nav and is also a bare number. To tell the two
+# currencies apart by identity rather than by digit-shape (a comma or digit count
+# is NOT a reliable discriminator: a 3-digit shard total has neither), the balance
+# finder skips this element and its subtree. Empty -> no exclusion.
+SHARD_AMOUNT_SELECTOR = '#top-nav-bar-shard-amount'
 
 # -- Watcher --------------------------------------------------------------- #
 

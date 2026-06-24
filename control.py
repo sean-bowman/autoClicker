@@ -19,13 +19,14 @@ Usage:
 Sean Bowman [06/2026]
 '''
 
+import json
 import os
 import sys
 import subprocess
 import threading
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from config import TASK_NAME
+from config import TASK_NAME, STATUS_FILE
 
 # Hide every child console window (schtasks/tasklist/powershell) so nothing flashes.
 _NO_WINDOW = 0x08000000  # subprocess.CREATE_NO_WINDOW
@@ -69,6 +70,21 @@ def getState() -> str:
     return 'stopped'
 
 
+def readStatus() -> dict | None:
+    '''
+    Return the watcher's published stats, or None if unavailable.
+
+    The watcher writes config.STATUS_FILE (account balance + gems gathered this
+    session). Missing/unparseable means the watcher hasn't run yet or is OFF;
+    when OFF the file is simply stale (last-known values), which we still show.
+    '''
+    try:
+        with open(STATUS_FILE, encoding='utf-8') as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
 def turnOn() -> None:
     '''Enable and immediately start the watcher task.'''
     _run(['schtasks', '/change', '/tn', TASK_NAME, '/enable'])
@@ -106,7 +122,7 @@ def launchGui() -> None:
     root = tk.Tk()
     root.title('Boxed Watcher')
     root.configure(bg=_BG)
-    root.geometry('300x190')
+    root.geometry('300x250')
     root.resizable(False, False)
     root.attributes('-topmost', True)
 
@@ -122,6 +138,16 @@ def launchGui() -> None:
     statusLabel = tk.Label(statusFrame, text='checking...', bg=_BG, fg=_TEXT,
                            font=('Segoe UI', 11))
     statusLabel.pack(side='left')
+
+    # Gem stats published by the watcher (config.STATUS_FILE), refreshed below.
+    statsFrame = tk.Frame(root, bg=_BG)
+    statsFrame.pack(pady=(6, 0))
+    balanceLabel = tk.Label(statsFrame, text='Balance: --', bg=_BG, fg=_TEXT,
+                            font=('Segoe UI', 10))
+    balanceLabel.pack()
+    sessionLabel = tk.Label(statsFrame, text='This session: +0', bg=_BG, fg=_ACCENT,
+                            font=('Segoe UI', 10, 'bold'))
+    sessionLabel.pack()
 
     toggle = tk.Button(root, text='...', width=18, height=2, bd=0,
                        bg=_SURFACE, fg=_TEXT, activebackground=_ACCENT,
@@ -148,9 +174,21 @@ def launchGui() -> None:
             toggle.config(text='Turn ON', state='normal', fg='#86efac')
             note.config(text='Watcher is stopped: no CPU/Chrome in use.')
 
+    def renderStats() -> None:
+        status = readStatus()
+        if status is None:
+            balanceLabel.config(text='Balance: --')
+            sessionLabel.config(text='This session: +0')
+            return
+        bal = status.get('balance')
+        balanceLabel.config(text=f'Balance: {bal:,}' if isinstance(bal, int) else 'Balance: --')
+        gathered = status.get('sessionGathered') or 0
+        sessionLabel.config(text=f'This session: +{gathered:,}')
+
     def refresh() -> None:
         if not busy['flag']:
             render(getState())
+        renderStats()
         root.after(3000, refresh)
 
     def onToggle() -> None:

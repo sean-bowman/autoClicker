@@ -60,11 +60,18 @@ A browser opens on boxed.gg. Log in, then close the window. The session is saved
 ```bash
 python watch.py --visible --minutes 35   # visible window, runs through one drop
 python watch.py --observe                # log drop state but never click (discovery)
+python watch.py --probe-balance          # dump candidate balance elements, then exit
 python watch.py                          # off-screen, runs forever (scheduled mode)
 ```
 
-Watch `logs/watch.log` for `Drop is LIVE, claiming …` / `Claimed, joined the drop`, and the
-`claim_*.png` proof screenshots.
+Watch `logs/watch.log` for `Drop is LIVE: claiming …` / `Claimed: joined the drop (balance: N)`
+and `Gems awarded: +K` lines when each drop resolves. The watcher also writes `logs/status.json`
+(account balance + gems gathered this run), which the control panel reads to show live stats.
+
+Reading the account balance is scoped to the nav via `config.ACCOUNT_BALANCE_SCOPE`
+(`#top-nav--desktop` by default): within that scope the balance is the only on-screen
+multi-digit, comma-grouped number. If boxed.gg restructures its nav, run
+`python watch.py --probe-balance` to re-identify the right scope id.
 
 **3. Register the background task (one-time setup):**
 
