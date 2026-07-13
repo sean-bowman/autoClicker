@@ -300,10 +300,15 @@ def watchSession(pw, headless: bool, offscreen: bool, observe: bool,
     opts = config.launchOptions(headless=headless)
     if offscreen:
         opts['args'] = opts.get('args', []) + [config.WINDOW_OFFSCREEN_ARG]
-    context = pw.chromium.launch_persistent_context(**opts)
-    config.applyStealth(context)
-    page = context.pages[0] if context.pages else context.new_page()
+    # The launch itself is inside the try so a failure -- e.g. a stale
+    # SingletonLock left in the profile by a hard power-off -- is caught and
+    # turned into a 'relaunch', letting main()'s backoff loop retry until it
+    # clears, instead of the exception killing the whole watcher silently.
+    context = None
     try:
+        context = pw.chromium.launch_persistent_context(**opts)
+        config.applyStealth(context)
+        page = context.pages[0] if context.pages else context.new_page()
         page.goto(config.BOXED_URL, wait_until='domcontentloaded', timeout=45000)
         page.wait_for_timeout(config.PAGE_SETTLE_SECONDS * 1000)
         log('session up' + (' (observe mode)' if observe else ''))
@@ -367,10 +372,11 @@ def watchSession(pw, headless: bool, offscreen: bool, observe: bool,
         log(f'session error, relaunching: {exc!r}'[:200])
         return 'relaunch'
     finally:
-        try:
-            context.close()
-        except Exception:
-            pass
+        if context is not None:
+            try:
+                context.close()
+            except Exception:
+                pass
 
 def parseArgs() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Watch boxed.gg and claim gem drops.')
