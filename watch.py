@@ -286,6 +286,30 @@ def claimNow(page) -> bool:
         log('Clicked, but button still present (claim unconfirmed)')
     return joined
 
+def windowStatus(now):
+    '''
+    Classify `now` against the fixed drop schedule.
+
+    Drops land every config.DROP_INTERVAL_MINUTES on the clock (:00, :30); the
+    active window runs from config.WATCH_LEAD_MINUTES before each drop to
+    config.WATCH_TRAIL_MINUTES after. Returns (active, sleepSeconds): active is
+    True inside a window (poll now); when inactive, sleepSeconds is the time until
+    the next window opens, so the caller can idle instead of busy-polling.
+
+    Folding the hour onto the half-hour cycle with `minute % interval` assumes the
+    local clock's :00/:30 align with the drop cadence, which holds for every real
+    UTC offset (all are whole- or half-hour).
+    '''
+    interval = config.DROP_INTERVAL_MINUTES * 60
+    lead = config.WATCH_LEAD_MINUTES * 60
+    trail = config.WATCH_TRAIL_MINUTES * 60
+    # Seconds elapsed since the last drop boundary.
+    sec = (now.minute % config.DROP_INTERVAL_MINUTES) * 60 + now.second
+    if sec <= trail or (interval - sec) <= lead:
+        return True, 0.0
+    # Idle: the next window opens `lead` seconds before the next drop.
+    return False, float((interval - lead) - sec)
+
 def watchSession(pw, headless: bool, offscreen: bool, observe: bool,
                  deadline: float, stats: dict) -> str:
     '''
@@ -336,7 +360,23 @@ def watchSession(pw, headless: bool, offscreen: bool, observe: bool,
                 lastBalance = bal   # advance on rise, decrease (spend), or no change
             writeStatus(lastBalance, stats['gathered'])
 
+        idle = False   # tracks the active<->idle transition so we log it once
         while time.time() < deadline:
+            # Only poll inside a drop window; otherwise keep the (logged-in)
+            # browser open but idle. --observe watches continuously, since its job
+            # is to discover the real drop timing rather than trust the schedule.
+            active, sleepFor = (True, 0.0) if observe else windowStatus(datetime.now())
+            if not active:
+                if not idle:
+                    log(f'idle: next drop window opens in ~{sleepFor / 60:.0f} min')
+                    idle = True
+                # Bounded sleep keeps the deadline responsive and re-checks the
+                # schedule at least every 30 s -- cheap, as the browser sits idle.
+                time.sleep(max(1.0, min(sleepFor, 30.0)))
+                continue
+            if idle:
+                log('active: drop window open, watching')
+                idle = False
             try:
                 syncBalance()
                 if isClaimable(page):

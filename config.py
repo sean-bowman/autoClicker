@@ -177,6 +177,24 @@ CLICK_DELAY_RANGE = (1.0, 4.0)
 # Cloudflare clearance fresh while idle between drops.
 WATCH_RELOAD_EVERY_MINUTES = 25
 
+# -- Drop schedule windowing ----------------------------------------------- #
+
+# boxed.gg drops on a fixed clock cadence: every DROP_INTERVAL_MINUTES on the
+# half hour (:00, :30, ...). Rather than poll continuously, the watcher only runs
+# its active poll/claim loop inside a window around each drop -- from
+# WATCH_LEAD_MINUTES before to WATCH_TRAIL_MINUTES after. Outside the window it
+# keeps the logged-in browser open but idle, so it reclaims the polling CPU
+# without paying a browser relaunch or risking a fresh Cloudflare challenge.
+#
+# The lead absorbs a drop that fires a touch early and gives a stale page time to
+# reload before the drop; the trail covers a late drop and an award that lands
+# just after the claim. With the defaults the watcher polls ~14 of every 60 min
+# (windows :25-:32 and :55-:02) instead of continuously. Widen the margins if
+# drops ever prove less punctual than the fixed schedule assumes.
+DROP_INTERVAL_MINUTES = 30
+WATCH_LEAD_MINUTES = 5
+WATCH_TRAIL_MINUTES = 2
+
 # The watcher runs real (headed) Chrome positioned off-screen. Headless real
 # Chrome is Cloudflare-blocked AND fails to reuse the logged-in profile (exit 21),
 # so an off-screen headed window is the practical "invisible" mode.
