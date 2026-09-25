@@ -8,6 +8,19 @@ you close the window, Chrome has already written the resulting cookies and
 localStorage into PROFILE_DIR, so watch.py can reuse the session without ever
 touching your password.
 
+If boxed.gg's login goes through Google OAuth, this script's browser may hit
+Google's "this browser or app may not be secure" block: Google refuses OAuth
+sign-in in any browser launched with DevTools/CDP attached, which is how
+Playwright starts Chrome even with navigator.webdriver spoofed. If that
+happens, log in with a plain, non-automated Chrome pointed at the same
+profile directory instead, then close it:
+
+    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" ^
+        --user-data-dir="<repo>\\autoClicker\\browserProfile" https://boxed.gg/
+
+Since PROFILE_DIR is just an on-disk Chrome profile, the cookies it writes
+are picked up by watch.py identically either way.
+
 Usage:
     python login.py
 '''

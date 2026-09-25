@@ -136,7 +136,17 @@ CLAIM_BUTTON_TEXT = 'Count Me In!'
 
 # A selector that, when present, signals we are NOT logged in. Used to fail fast
 # with a clear "session expired, re-run login.py" message.
-LOGGED_OUT_SELECTOR = 'button:has-text("Log in"), button:has-text("Sign in"), a:has-text("Log in")'
+#
+# boxed.gg's nav renders this as a single word ("LOGIN", "SIGNUP") with no space
+# and no fixed case, so text matches must not assume "Log in"/"Sign in" spacing --
+# a 2026-09 site update silently broke a space-sensitive version of this selector,
+# and the watcher polled a logged-out session for 20+ hours without ever logging
+# SESSION EXPIRED. i regex-matches case-insensitively and ignores whitespace
+# inside the text, so it survives "Log in", "LOGIN", "Log In", etc.
+LOGGED_OUT_SELECTOR = (
+    'button:text-matches("log\\s*in", "i"), a:text-matches("log\\s*in", "i"), '
+    'button:text-matches("sign\\s*in", "i"), a:text-matches("sign\\s*in", "i")'
+)
 
 # -- Account gem balance --------------------------------------------------- #
 

@@ -26,7 +26,12 @@ import subprocess
 import threading
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from config import TASK_NAME, STATUS_FILE
+from config import BASE_DIR, TASK_NAME, STATUS_FILE
+
+# Multi-resolution icon (title bar + taskbar). .ico over iconphoto()'s PNG
+# path because Windows resolves the taskbar icon from the .ico's embedded
+# sizes; a single PNG frame gets blurrily upscaled/downscaled there instead.
+ICON_FILE = BASE_DIR / 'assets' / 'gem.ico'
 
 # Hide every child console window (schtasks/tasklist/powershell) so nothing flashes.
 _NO_WINDOW = 0x08000000  # subprocess.CREATE_NO_WINDOW
@@ -119,8 +124,18 @@ def launchGui() -> None:
     '''Build and run the always-on-top control window.'''
     import tkinter as tk
 
+    if sys.platform == 'win32':
+        import ctypes
+        # Gives this window its own taskbar identity instead of sharing
+        # pythonw.exe's, so it groups/pins separately from other Python GUIs.
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            'SeanBowman.BoxedGemWatcher'
+        )
+
     root = tk.Tk()
     root.title('Boxed Watcher')
+    if ICON_FILE.exists():
+        root.iconbitmap(default=str(ICON_FILE))
     root.configure(bg=_BG)
     root.geometry('300x250')
     root.resizable(False, False)
